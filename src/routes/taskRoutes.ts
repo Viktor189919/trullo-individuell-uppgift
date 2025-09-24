@@ -1,11 +1,13 @@
 import { Router } from "express"
-import { getTaskById, createTask, updateTaskById, deleteTaskById } from "../controllers/taskControllers.js"
+import { createTask, getTaskById, getTasks, updateTaskById, deleteTaskById } from "../controllers/taskControllers.js"
 
 const router = Router()
 
-router.get("/:id", getTaskById)
-
 router.post("/", createTask)
+
+router.get("/", getTasks)
+
+router.get("/:id", getTaskById)
 
 router.patch("/:id", updateTaskById)
 

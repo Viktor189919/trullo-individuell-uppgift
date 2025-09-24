@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose"
 import * as z from "zod";
-import { User } from "../models/models.js"
+import { User, Task, Project } from "../models/models.js"
 import { UserValidator } from "../validation/validators.js";
 import type { UserType } from "../types/types.js"
-import { isDuplicationError } from "../utils/mongoErrors.js";
+import { mongoErrorHandler } from "../utils/mongoErrors.js";
+import { MongoServerError } from "mongodb";
+
 
 export async function createUser(req : Request, res : Response) {
 
@@ -24,13 +26,12 @@ export async function createUser(req : Request, res : Response) {
             return res.status(400).json({message: validationErrors})
         }
 
-        if (isDuplicationError(error)) {
-            //Get name of field that caused error
-            const field = Object.keys(error.keyValue)[0]
-            return res.status(409).json({message: `A user with that ${field} already exist`})
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
         }
 
-        console.error("Error from route '/users POST(createUser)'", error)
+        console.error("Error from route '/users POST(createUser)': ", error)
         return res.status(500).json({message: "Internal server error"})
     }
 }
@@ -47,10 +48,20 @@ export async function getUserById(req : Request<{ id : string }>, res : Response
 
         const user = await User.findById(id)
 
+        if (!user) {
+            return res.status(404).json({message: "User not found"});
+        }
+
         return res.status(200).json({data: user})
 
     } catch (error : unknown) {
-        console.error("Error from route '/users GET(getUserById)'", error)
+
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
+        }
+
+        console.error("Error from route '/users/:id GET(getUserById)': ", error)
         return res.status(500).json({message: "Internal server error"})
     }
 }
@@ -69,6 +80,10 @@ export async function updateUserById(req : Request<{ id : string }, {}, Partial<
 
         const updatedUser = await User.findByIdAndUpdate(id, req.body, {new: true})
 
+        if (!updatedUser) {
+            return res.status(404).json({message: "User not found"});
+        }
+
         return res.status(200).json({data: updatedUser})
 
     } catch (error : unknown) {
@@ -79,13 +94,12 @@ export async function updateUserById(req : Request<{ id : string }, {}, Partial<
             return res.status(400).json({message: validationErrors})
         }
 
-        if (isDuplicationError(error)) {
-            //Get name of field that caused error
-            const field = Object.keys(error.keyValue)[0]
-            return res.status(409).json({message: `A user with that ${field} already exist`})
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
         }
 
-        console.error("Error from route '/users PATCH(updateUserById)'", error)
+        console.error("Error from route '/users/:id PATCH(updateUserById)': ", error)
         return res.status(500).json({message: "Internal server error"})
     }
 }
@@ -97,15 +111,27 @@ export async function deleteUserById(req : Request, res : Response) {
         const { id } = req.params;
 
         if (!mongoose.isValidObjectId(id)) {
-            return res.status(400).json({message: "Id is not a valid ObjectId"})
+            return res.status(400).json({message: "Id is not a valid ObjectId"});
         }
 
-        await User.deleteOne({ _id: id })
+        const userToDelete = await User.findByIdAndDelete(id);
 
-        return res.status(200).json({message: "User deleted successfully"})
+        if (!userToDelete) {
+            return res.status(404).json({message: "User not found"});
+        }
+
+        await Task.updateMany({ assignedTo: userToDelete.id }, {assignedTo: null})
+
+        return res.status(200).json({message: "User deleted successfully"});
 
     } catch (error : unknown) {
-        console.error("Error from route '/users DELETE(deleteUserById)'", error);
-        return res.status(500).json({message: "Internal server error"})
+
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
+        }
+
+        console.error("Error from route '/users/:id DELETE(deleteUserById)': ", error);
+        return res.status(500).json({message: "Internal server error"});
     }
 }

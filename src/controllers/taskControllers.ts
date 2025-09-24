@@ -1,18 +1,26 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose"
 import * as z from "zod";
-import { Task } from "../models/models.js"
+import { Task, Project, User } from "../models/models.js"
 import { TaskValidator } from "../validation/validators.js";
 import type { TaskType } from "../types/types.js"
-import { isDuplicationError } from "../utils/mongoErrors.js";
+import { MongoServerError } from "mongodb"
+import { mongoErrorHandler } from "../utils/mongoErrors.js";
+
 
 export async function createTask(req : Request, res : Response) {
 
-    try {
-    
-        TaskValidator.parse(req.body)
+    try { 
 
-        const task = await Task.create(req.body)
+        TaskValidator.parse(req.body);
+
+        const task = await Task.create(req.body);
+
+        const { projectId } = req.body;
+
+        if (projectId) {  
+            await Project.findByIdAndUpdate(projectId, {$push: {tasks: task.id}})
+        }
 
         return res.status(201).json({message: "Task created successfully", data: task})
 
@@ -21,20 +29,18 @@ export async function createTask(req : Request, res : Response) {
         if (error instanceof z.ZodError) {
             //Get errors from all fields that failed validation
             const validationErrors = error.issues.map(issue => issue.message)
-            return res.status(400).json({message: validationErrors})
+            return res.status(400).json({message: validationErrors})            
         }
 
-        if (isDuplicationError(error)) {
-            //Get name of field that caused error
-            const field = Object.keys(error.keyValue)[0]
-            return res.status(409).json({message: `A user with that ${field} already exist`})
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error);
+            return res.status(status).json(message)
         }
 
-        console.error("Error from route '/tasks POST(createTask)'", error)
-        return res.status(500).json({message: "Internal server error"})
+        console.error("Error from route '/tasks POST(createTask)': ", error);
+        res.status(500).json({message: "Internal server error"});
     }
 }
-
 export async function getTaskById(req : Request, res : Response) {
      
     try {
@@ -45,12 +51,42 @@ export async function getTaskById(req : Request, res : Response) {
             return res.status(400).json({message: "Id is not a valid ObjectId"})
         }
 
-        const task = await Task.findById(id)
+        const task = await Task.findById(id);
+        
+        if (!task) {
+            return res.status(404).json({message: "Task not found"})
+        }
 
         return res.status(200).json({data: task})
 
     } catch (error : unknown) {
-        console.error("Error from route '/tasks GET(getTaskById)'", error)
+
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
+        }
+
+        console.error("Error from route '/tasks/:id GET(getTaskById)': ", error)
+        return res.status(500).json({message: "Internal server error"})
+    }
+}
+
+export async function getTasks(req : Request, res : Response) {
+
+    try {
+
+        const tasks = await Task.find({}) 
+
+        return res.status(200).json({data: tasks});
+
+    } catch (error : unknown) {
+
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
+        }
+
+        console.error("Error from route '/tasks GET(getTasks)': ", error);
         return res.status(500).json({message: "Internal server error"})
     }
 }
@@ -69,6 +105,10 @@ export async function updateTaskById(req : Request<{ id : string }, {}, Partial<
 
         const updatedTask = await Task.findByIdAndUpdate(id, req.body, {new: true})
 
+        if (!updatedTask) {
+            return res.status(404).json({message: "Task not found"})
+        }
+
         return res.status(200).json({data: updatedTask})
 
     } catch (error : unknown) {
@@ -79,33 +119,55 @@ export async function updateTaskById(req : Request<{ id : string }, {}, Partial<
             return res.status(400).json({message: validationErrors})
         }
 
-        if (isDuplicationError(error)) {
-            //Get name of field that caused error
-            const field = Object.keys(error.keyValue)[0]
-            return res.status(409).json({message: `A user with that ${field} already exist`})
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
         }
 
-        console.error("Error from route '/tasks PATCH(updateTaskById)'", error)
+        console.error("Error from route '/tasks/:id PATCH(updateTaskById)': ", error)
         return res.status(500).json({message: "Internal server error"})
     }
 }
 
-export async function deleteTaskById(req : Request, res : Response) {
+export async function deleteTaskById(req : Request<{ id : string}>, res : Response) {
 
     try {
 
         const { id } = req.params;
 
         if (!mongoose.isValidObjectId(id)) {
-            return res.status(400).json({message: "Id is not a valid ObjectId"})
+            return res.status(400).json({message: "TaskId is not a valid ObjectId"})
         }
 
-        await Task.deleteOne({ _id: id })
+        const taskToDelete = await Task.findById(id)
+
+        if (!taskToDelete) {
+            return res.status(404).json({message: "Task not found"})
+        }
+
+        const { projectId } = taskToDelete;
+        
+        if (projectId) {
+
+            if (!mongoose.isValidObjectId(projectId)) {
+                return res.status(400).json({message: "ProjectId is not a valid ObjectId"})
+            }
+
+            await Project.findByIdAndUpdate(projectId, {$pull: { tasks: taskToDelete.id}})
+        }
+
+        await taskToDelete.deleteOne();
 
         return res.status(200).json({message: "Task deleted successfully"})
 
     } catch (error : unknown) {
-        console.error("Error from route '/tasks DELETE(deleteTaskById)'", error);
+
+        if (error instanceof MongoServerError) {
+            const { status, message } = mongoErrorHandler(error)
+            return res.status(status).json({message: message})
+        }
+
+        console.error("Error from route '/tasks/:id DELETE(deleteTaskById)': ", error);
         return res.status(500).json({message: "Internal server error"})
     }
 }

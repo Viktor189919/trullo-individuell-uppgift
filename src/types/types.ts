@@ -1,8 +1,13 @@
-enum Status {
+enum TaskStatus {
     TO_DO = "to-do",
     IN_PROGRESS = "in progress",
     BLOCKED = "blocked",
     DONE = "done"
+}
+
+enum ProjectStatus {
+    OPEN = "open",
+    CLOSED = "closed"
 }
 
 export type UserType = {
@@ -13,9 +18,22 @@ export type UserType = {
 }
 
 export type TaskType = {
-    id : string;
+    id? : string;
     title : string;
     description : string;
-    status : Status;
-    assignedTo : string;
+    status? : TaskStatus;
+    assignedTo? : string;
+}
+
+export type ProjectType = {
+    id : string,
+    title : string,
+    members : UserType[],
+    tasks : TaskType[],
+    status : ProjectStatus,
+}
+
+export type MongoErrorResponse = {
+    status : number,
+    message : string
 }
