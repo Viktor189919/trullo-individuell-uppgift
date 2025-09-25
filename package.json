@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec tsx src/index.ts"
+    "dev": "nodemon --exec tsx src/index.ts",
+    "seed": "nodemon --exec tsx src/seed.ts"
   },
   "repository": {
     "type": "git",
@@ -26,10 +27,11 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.0.0",
     "@types/express": "^5.0.3",
     "@types/node": "^24.5.0",
+    "nodemon": "^3.1.10",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2",
-    "nodemon": "^3.1.10"
+    "typescript": "^5.9.2"
   }
 }

@@ -17,9 +17,9 @@ export const TaskValidator = z.object(
     {
         title: z.string("Title must be of type string")
             .min(1, {message: "Title is required"})
-            .max(20, {message: "Title cannot be more than 20 characters"}),
+            .max(40, {message: "Title cannot be more than 40 characters"}),
         description: z.string()
-            .max(200, {message: "Description cannot be more than 200 characters"}).optional(),
+            .max(100, {message: "Description cannot be more than 100 characters"}).optional(),
         status: z.enum(["to-do", "in progress", "blocked", "done"], {
                     message: "Status can only be one of the string values: 'to-do', 'in progress', 'blocked', 'done'"
                 })
@@ -36,7 +36,7 @@ export const ProjectValidator = z.object(
     {
         title: z.string("Title must be of type string")
             .min(1, {message: "Title is required"})
-            .max(30, {message: "Title cannot be more than 30 characters"}),
+            .max(40, {message: "Title cannot be more than 40 characters"}),
         members: z.array(
                     z.string()
                     .refine((val) => mongoose.isValidObjectId(val), {
