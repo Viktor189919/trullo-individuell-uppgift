@@ -20,8 +20,10 @@ const TaskSchema = new Schema(
             required: true,
             default: "to-do"
         },
-        assignedTo: {type: Schema.Types.ObjectId, ref: "User"},
-        projectId: {type: Schema.Types.ObjectId, ref: "Project"}
+        assignedTo: {type: Schema.Types.ObjectId, ref: "User", default: null},
+        createdAt: {type: Date, default: new Date},
+        finishedAt: {type: Date, default: null},
+        projectId: {type: Schema.Types.ObjectId, ref: "Project", default: null}
     },
     {collection: "tasks"}
 )
@@ -29,6 +31,7 @@ const TaskSchema = new Schema(
 const ProjectSchema = new Schema(
     {
         title: {type: String, required: true},
+        description: {type: String},
         members: {
             type: [{type: Schema.Types.ObjectId, ref: "User"}],
             default: []

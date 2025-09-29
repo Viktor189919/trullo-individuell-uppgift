@@ -1,39 +1,55 @@
-import type { Request, Response } from "express";
-import mongoose from "mongoose"
-import * as z from "zod";
-import { Task, Project, User } from "../models/models.js"
-import { TaskValidator } from "../validation/validators.js";
-import type { TaskType } from "../types/types.js"
-import { MongoServerError } from "mongodb"
+import mongoose from "mongoose";
+import { ZodError } from "zod";
+import { MongoServerError } from "mongodb";
 import { mongoErrorHandler } from "../utils/mongoErrors.js";
+import { zodErrorHandler } from "../utils/zodErrors.js"
+import { Task, Project, User } from "../models/models.js";
+import { CreateTaskSchema, UpdateTaskSchema } from "../validation/validators.js";
+import { ErrorOrigin } from "../types/errorTypes.js";
+import type { Request, Response } from "express";
+import type { CreateTaskType, UpdateTaskType } from "../validation/validators.js";
 
 
-export async function createTask(req : Request, res : Response) {
+export async function createTask(req : Request<{}, {}, CreateTaskType>, res : Response) {
 
     try { 
 
-        TaskValidator.parse(req.body);
+        const validBody = CreateTaskSchema.parse(req?.body);
 
-        const task = await Task.create(req.body);
+        const { assignedTo, projectId } = validBody;
 
-        const { projectId } = req.body;
-
+        let project;
         if (projectId) {  
-            await Project.findByIdAndUpdate(projectId, {$push: {tasks: task.id}})
+            project = await Project.findById(projectId)
+            if (!project) {
+                res.status(404).json({message: `Could not find a project with id ${projectId}`})
+            }
+        }
+
+        if (assignedTo) {  
+            const isUser = await User.findById(assignedTo)
+            if (!isUser) {
+                return res.status(404).json({message: `Could not find a user with id ${assignedTo}`})
+            }
+        }
+
+        const task = await Task.create(validBody);
+
+        if (project) {
+            await project.updateOne({$push: {tasks: task.id}})
         }
 
         return res.status(201).json({message: "Task created successfully", data: task})
 
     } catch (error : unknown) {
 
-        if (error instanceof z.ZodError) {
-            //Get errors from all fields that failed validation
-            const validationErrors = error.issues.map(issue => issue.message)
+        if (error instanceof ZodError) {
+            const validationErrors = zodErrorHandler(error)
             return res.status(400).json({message: validationErrors})            
         }
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error);
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.TASKS);
             return res.status(status).json(message)
         }
 
@@ -41,11 +57,11 @@ export async function createTask(req : Request, res : Response) {
         res.status(500).json({message: "Internal server error"});
     }
 }
-export async function getTaskById(req : Request, res : Response) {
+export async function getTaskById(req : Request<{ id : string }>, res : Response) {
      
     try {
     
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "Id is not a valid ObjectId"})
@@ -62,7 +78,7 @@ export async function getTaskById(req : Request, res : Response) {
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.TASKS)
             return res.status(status).json({message: message})
         }
 
@@ -71,7 +87,7 @@ export async function getTaskById(req : Request, res : Response) {
     }
 }
 
-export async function getTasks(req : Request, res : Response) {
+export async function getTasks(req : Request<{ id : string }>, res : Response) {
 
     try {
 
@@ -82,7 +98,7 @@ export async function getTasks(req : Request, res : Response) {
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.TASKS)
             return res.status(status).json({message: message})
         }
 
@@ -91,19 +107,35 @@ export async function getTasks(req : Request, res : Response) {
     }
 }
 
-export async function updateTaskById(req : Request<{ id : string }, {}, Partial<TaskType>>, res : Response) {
+export async function updateTaskById(req : Request<{ id : string }, {}, UpdateTaskType>, res : Response) {
     
     try {
 
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "Id is not a valid ObjectId"})
         }
 
-        TaskValidator.partial().parse(req.body)
+        const validBody = UpdateTaskSchema.parse(req?.body)
 
-        const updatedTask = await Task.findByIdAndUpdate(id, req.body, {new: true})
+        const { assignedTo } = validBody;
+
+        if (assignedTo) {  
+            const isUser = await User.findById(assignedTo)
+            
+            if (!isUser) {
+                return res.status(404).json({message: `Could not find a user with id ${assignedTo}`})
+            }
+        }
+
+        const updateData = {...validBody} as UpdateTaskType & { finishedAt? : Date};
+
+        if (validBody.status === "done") {
+            updateData.finishedAt = new Date
+        }
+
+        const updatedTask = await Task.findByIdAndUpdate(id, updateData, {new: true})
 
         if (!updatedTask) {
             return res.status(404).json({message: "Task not found"})
@@ -113,14 +145,13 @@ export async function updateTaskById(req : Request<{ id : string }, {}, Partial<
 
     } catch (error : unknown) {
         
-        if (error instanceof z.ZodError) {
-            //Get errors from all fields that failed validation
-            const validationErrors = error.issues.map(issue => issue.message)
+        if (error instanceof ZodError) {
+            const validationErrors = zodErrorHandler(error)
             return res.status(400).json({message: validationErrors})
         }
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.TASKS)
             return res.status(status).json({message: message})
         }
 
@@ -133,7 +164,7 @@ export async function deleteTaskById(req : Request<{ id : string}>, res : Respon
 
     try {
 
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "TaskId is not a valid ObjectId"})
@@ -163,7 +194,7 @@ export async function deleteTaskById(req : Request<{ id : string}>, res : Respon
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.TASKS)
             return res.status(status).json({message: message})
         }
 

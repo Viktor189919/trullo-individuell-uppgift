@@ -1,34 +1,34 @@
-import type { Request, Response} from "express";
-import type { TaskType } from "../types/types.js"
 import mongoose from "mongoose"
-import * as z from "zod";
-import { ProjectValidator, TaskValidator } from "../validation/validators.js";
-import { Project, Task, User } from "../models/models.js";
+import { ZodError } from "zod";
 import { MongoServerError } from "mongodb";
 import { mongoErrorHandler } from "../utils/mongoErrors.js";
+import { zodErrorHandler } from "../utils/zodErrors.js";
+import { CreateProjectSchema, UpdateProjectSchema } from "../validation/validators.js";
+import { Project, Task, User } from "../models/models.js";
+import { ErrorOrigin } from "../types/errorTypes.js";
+import type { Request, Response} from "express";
+import type { CreateProjectType, UpdateProjectType } from "../validation/validators.js"
 
-// CRUD for projects
 
-export async function createProject(req : Request, res : Response) {
+export async function createProject(req : Request<{}, {}, CreateProjectType>, res : Response) {
 
     try {
 
-        ProjectValidator.parse(req.body);
+        const validBody = CreateProjectSchema.parse(req?.body);
 
-        const project = await Project.create(req.body);
+        const project = await Project.create(validBody);
 
         return res.status(201).json({message: "Project created successfully", data: project})
 
     } catch (error : unknown) {
 
-        if (error instanceof z.ZodError) {
-            //Get errors from all fields that failed validation
-            const validationErrors = error.issues.map(issue => issue.message)
+        if (error instanceof ZodError) {
+            const validationErrors = zodErrorHandler(error);
             return res.status(400).json({message: validationErrors})
         }
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -41,14 +41,14 @@ export async function getProjects(req : Request, res : Response) {
     
     try {
 
-        const project = await Project.find()
+        const project = await Project.find({})
 
         return res.status(200).json({data: project})
 
     } catch (error : unknown)  {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -61,7 +61,7 @@ export async function getProjectById(req : Request, res : Response) {
     
     try {
 
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "Id is not a valid ObjectId"})
@@ -78,7 +78,7 @@ export async function getProjectById(req : Request, res : Response) {
     } catch (error : unknown)  {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -87,36 +87,37 @@ export async function getProjectById(req : Request, res : Response) {
     }
 }
 
-export async function updateProjectById(req : Request, res : Response) {
+export async function updateProjectById(req : Request<{ id : string }, {}, UpdateProjectType>, res : Response) {
 
     try {
 
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "Id is not a valid ObjectId"});
         }
 
-        ProjectValidator.partial().parse(req.body);
+        const validBody = UpdateProjectSchema.partial().parse(req?.body);
 
-        const updatedProject = await Project.findByIdAndUpdate(id, req.body, {new: true});
+        const project = await Project.findById(id)
+
+        const updatedProject = await Project.findByIdAndUpdate(id, validBody, {new:true})
 
         if (!updatedProject) {
             return res.status(404).json({message: "Project not found"})
         }
 
-        return res.status(200).json({data: updatedProject})
+        return res.status(200).json({data: project})
 
     } catch (error : unknown) {
 
-        if (error instanceof z.ZodError) {
-            //Get errors from all fields that failed validation
-            const validationErrors = error.issues.map(issue => issue.message)
+        if (error instanceof ZodError) {
+            const validationErrors = zodErrorHandler(error);
             return res.status(400).json({message: validationErrors})
         }
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -125,12 +126,11 @@ export async function updateProjectById(req : Request, res : Response) {
     }
 }
 
-//Delete project with belonging tasks
 export async function deleteProjectById(req : Request, res : Response) {
 
     try {
 
-        const { id } = req.params;
+        const { id } = req?.params;
 
         if (!mongoose.isValidObjectId(id)) {
             return res.status(400).json({message: "Id is not a valid ObjectId"});
@@ -151,7 +151,7 @@ export async function deleteProjectById(req : Request, res : Response) {
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -182,7 +182,7 @@ export async function getProjectTasks(req : Request, res : Response) {
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -204,6 +204,14 @@ export async function addProjectMember(req : Request<{ projectId : string }, {},
         }
 
         const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({message: "UserId is required"});
+        }
+
+        if (typeof userId !== "string") {
+            return res.status(400).json({message: "UserId must be a string"});
+        }
 
         if (!mongoose.isValidObjectId(userId)) {
             return res.status(400).json({message: "UserId is not a valid ObjectId"});
@@ -228,7 +236,7 @@ export async function addProjectMember(req : Request<{ projectId : string }, {},
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 
@@ -258,7 +266,7 @@ export async function getProjectMembers(req : Request, res : Response) {
     } catch (error : unknown) {
 
         if (error instanceof MongoServerError) {
-            const { status, message } = mongoErrorHandler(error)
+            const { status, message } = mongoErrorHandler(error, ErrorOrigin.PROJECTS)
             return res.status(status).json({message: message})
         }
 

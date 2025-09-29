@@ -1,47 +1,43 @@
 import { faker } from '@faker-js/faker';
-import mongoose from 'mongoose';
+import connectDB from "./db.js";
 import dotenv from "dotenv"
 import { Project, Task, User } from "./models/models.js"
 
 dotenv.config()
-
-function createRandomUser() {
-  return {
-    name: faker.internet.username(),
-    email: faker.internet.email(),
-    password: faker.internet.password(),
-  };
-}
-
-const randomUsers = faker.helpers.multiple(createRandomUser, {
-  count: 20,
-})
 
 const rand = (arr : any) => arr[Math.floor(Math.random() * arr.length)];
 
 const taskStatus = ["to-do", "in progress", "blocked", "done"];
 
 async function main() {
-	await mongoose.connect(process.env.MONGODB_URI!, {
-        dbName: "trullo",
-    });
-	console.log("Connected:");
-
-	await Promise.all([
+	
+    await connectDB()
+	
+    await Promise.all([
 		Project.deleteMany({}),
 		Task.deleteMany({}),
 		User.deleteMany({}),
 	]);
 
-    const users = await User.insertMany(randomUsers)
+    const randUsers = Array.from({length: 20}).map((arr) => {
+        return {
+            name: faker.internet.username(),
+            email: faker.internet.email(),
+            password: faker.internet.password()
+        }
+    })
+
+    const users = await User.insertMany(randUsers)
 
     const randProjects = [
         {
             title: "Build a website", 
+            description: "A website to showcase my portfolio",
             members: Array.from({length: 5}).map(arr => rand(users).id)
         },
         {
             title: "Design operating system", 
+            description: "An operating system for my computer",
             members: Array.from({length: 5}).map(arr => rand(users).id)
         }
     ]

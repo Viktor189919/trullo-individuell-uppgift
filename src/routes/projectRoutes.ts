@@ -1,7 +1,9 @@
 import { Router } from "express";
-import { getProjectById, createProject, updateProjectById, deleteProjectById, getProjectTasks, addProjectMember, getProjectMembers } from "../controllers/projectControllers.js";
+import { getProjectById, getProjects, createProject, updateProjectById, deleteProjectById, getProjectTasks, addProjectMember, getProjectMembers } from "../controllers/projectControllers.js";
 
 const router = Router();
+
+router.get("/", getProjects);
 
 router.get("/:id", getProjectById);
 
