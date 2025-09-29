@@ -32,6 +32,15 @@ async function main() {
         }
     }))
 
+    if (!process.env.SALT_ROUNDS) {
+        throw new Error("SALT_ROUNDS is not defined in env variables")
+    }
+
+    const hashedPassword = await bcrypt.hash("Passw0rd!", parseInt(process.env.SALT_ROUNDS))
+    
+    const authUser = {name: "Joel Janson Johansen", email: "admin@example.com", password: hashedPassword}
+    
+    randUsers.push(authUser)
     const users = await User.insertMany(randUsers)
 
     const randProjects = [

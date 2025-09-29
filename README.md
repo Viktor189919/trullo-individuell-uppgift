@@ -12,11 +12,14 @@ Om man vill lägga till en task till ett projekt så måste man skapa en ny task
 
 För att kunna använda alla funktioner så måste man auktorisera sig med en token. Alla routes är skyddade förutom den där man skapar en user och den där man loggar in:
 
-1. Skapa en user genom "/users POST"
+1. Logga in genom route "/auth/signin (POST)"
+    Användar uppgifter:
+    {
+    "email": "admin@example.com",
+    "password": "Passw0rd!"
+    }
 
-2. Logga in genom "/auth/signin POST"
-
-3. Kopiera sedan token som du får i responsen och klistra in i "Bearer token" varje gång du ska kontakta en skyddad route.
+2. Kopiera sedan token som du får i responsen och klistra in i "Bearer token" varje gång du ska kontakta en skyddad route.
 
 ### Beskrivning av appen
 Den är i grunden uppbyggd enligt instruktioner med tasks och users. Har sedan byggt vidare med en enkel variant av projekt resurser som kan innehålla tasks och users.
