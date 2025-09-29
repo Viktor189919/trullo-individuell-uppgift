@@ -27,9 +27,13 @@ Projekt har arrayer för tasks, "tasks", och för users "members". Till members 
 
 ### Val av databas
 Jag valde att använda en nosql databas, mongodb. 
+
 Eftersom trullo är en variant av trello så tänkte jag att det är en applikation som har potential att få många nya användare på kort tid då den vänder sig till i princip vem som helst som behöver projekt-hantering. Det finns ingen känd mängd data från början eller en förutsägbar mängd data i framtiden. Av detta så tänkte jag att man bör använda sig av en databas som är lätt att skala upp och därför beslutade jag nosql.
 
-Datan i sig tänker jag i det här fallet inte är så känslig så alla kontroller som sker i sql med transaktioner och annat kändes inte viktiga nog för att välja sql.
+Datan i sig tänker jag i det här fallet inte är så känslig så alla kontroller som sker i sql med transaktioner och annat kändes inte viktiga nog för att välja sql. 
+Ett företag skulle exempelvis avrådas från att använda känsliga uppgifter i appen.
+Att data skulle manipuleras av flera användare samtidigt är generellt ganska osannolikt när det inte är så många användare som jobbar med samma data samtidigt. 
+Om gammal data manipuleras så bör det inte heller ha alltför stora konsekvenser om fördröjda ändringar sker i efterhand.
 
 ### Tekniker
 
