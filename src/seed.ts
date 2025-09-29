@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker';
 import connectDB from "./db.js";
 import dotenv from "dotenv"
+import bcrypt from "bcrypt"
 import { Project, Task, User } from "./models/models.js"
 
 dotenv.config()
@@ -19,13 +20,17 @@ async function main() {
 		User.deleteMany({}),
 	]);
 
-    const randUsers = Array.from({length: 20}).map((arr) => {
+    const randUsers = await Promise.all(Array.from({length: 20}).map(async (arr) => {
+
+        if (!process.env.SALT_ROUNDS) {
+        throw new Error("SALT_ROUNDS is not defined in env variables")
+    }
         return {
             name: faker.internet.username(),
             email: faker.internet.email(),
-            password: faker.internet.password()
+            password: await bcrypt.hash(faker.internet.password(), parseInt(process.env.SALT_ROUNDS))
         }
-    })
+    }))
 
     const users = await User.insertMany(randUsers)
 
